@@ -1,0 +1,47 @@
+server:
+  port: 8081
+spring:
+  application:
+    name: hmdp
+  datasource:
+    driver-class-name: com.mysql.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/hmdp?useSSL=false&serverTimezone=UTC
+    username: root
+    password: 123
+  redis:
+    host: 192.168.150.101
+    port: 6379
+    password: 123321
+    lettuce:
+      pool:
+        max-active: 10
+        max-idle: 10
+        min-idle: 1
+        time-between-eviction-runs: 10s
+  rabbitmq:
+    host: 127.0.0.1
+    port: 5672
+    username: guest
+    password: guest
+    listener:
+      simple:
+        auto-startup: false
+        retry:
+          enabled: true
+          initial-interval: 1000ms
+          max-attempts: 3
+          multiplier: 2.0
+  jackson:
+    default-property-inclusion: non_null # JSON处理时忽略非空字段
+mybatis-plus:
+  type-aliases-package: com.hmdp.entity # 别名扫描包
+langchain4j:
+  open-ai:
+    api-key: ${AI_API_KEY:sk-your-key-here}
+    base-url: ${AI_BASE_URL:https://api.openai.com/v1}
+    model-name: ${AI_MODEL:gpt-3.5-turbo}
+    temperature: 0.7
+    timeout: 60s
+logging:
+  level:
+    com.hmdp: debug
