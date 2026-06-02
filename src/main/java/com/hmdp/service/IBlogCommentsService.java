@@ -1,11 +1,12 @@
 package com.hmdp.service;
 
+import com.hmdp.dto.Result;
 import com.hmdp.entity.BlogComments;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 /**
  * <p>
- *  服务类
+ * 博客评论服务接口
  * </p>
  *
  * @author 虎哥
@@ -13,4 +14,15 @@ import com.baomidou.mybatisplus.extension.service.IService;
  */
 public interface IBlogCommentsService extends IService<BlogComments> {
 
+    /** 分页查询博客的一级评论（按时间倒序） */
+    Result queryComments(Long blogId, Integer current);
+
+    /** 添加评论（自动填充用户ID，更新博客评论数） */
+    Result addComment(BlogComments comment);
+
+    /** 删除评论（仅评论作者可删，更新博客评论数） */
+    Result deleteComment(Long id);
+
+    /** 分页查询某条评论的回复 */
+    Result queryReplies(Long blogId, Long parentId, Integer current);
 }

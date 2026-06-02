@@ -1,6 +1,7 @@
 package com.hmdp.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -66,6 +67,18 @@ public class BlogComments implements Serializable {
      * 状态，0：正常，1：被举报，2：禁止查看
      */
     private Boolean status;
+
+    /** 用户头像（非数据库字段） */
+    @TableField(exist = false)
+    private String icon;
+
+    /** 用户昵称（非数据库字段） */
+    @TableField(exist = false)
+    private String userName;
+
+    /** 子评论/回复数量（非数据库字段，用于列表展示） */
+    @TableField(exist = false)
+    private Integer replyCount;
 
     /**
      * 创建时间
