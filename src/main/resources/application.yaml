@@ -34,15 +34,14 @@ spring:
           multiplier: 2.0
   jackson:
     default-property-inclusion: non_null # JSON处理时忽略非空字段
-mybatis-plus:
-  type-aliases-package: com.hmdp.entity # 别名扫描包
-langchain4j:
-  open-ai:
+ai:
+  openai:
     api-key: ${AI_API_KEY:sk-your-key-here}
     base-url: ${AI_BASE_URL:https://api.openai.com/v1}
-    model-name: ${AI_MODEL:gpt-3.5-turbo}
+    model: ${AI_MODEL:gpt-3.5-turbo}
     temperature: 0.7
-    timeout: 60s
+mybatis-plus:
+  type-aliases-package: com.hmdp.entity # 别名扫描包
 logging:
   level:
     com.hmdp: debug
