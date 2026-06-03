@@ -2,10 +2,10 @@ server:
   port: 8081
 spring:
   application:
-    name: hmdp
+    name: merchant-review
   datasource:
     driver-class-name: com.mysql.jdbc.Driver
-    url: jdbc:mysql://127.0.0.1:3306/hmdp?useSSL=false&serverTimezone=UTC
+    url: jdbc:mysql://127.0.0.1:3306/merchant_review?useSSL=false&serverTimezone=UTC
     username: root
     password: 123
   redis:
@@ -41,7 +41,7 @@ ai:
     model: ${AI_MODEL:gpt-3.5-turbo}
     temperature: 0.7
 mybatis-plus:
-  type-aliases-package: com.hmdp.entity # 别名扫描包
+  type-aliases-package: com.merchant.review.entity # 别名扫描包
 logging:
   level:
-    com.hmdp: debug
+    com.merchant.review: debug
