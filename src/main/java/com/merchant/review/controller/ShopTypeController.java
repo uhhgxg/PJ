@@ -2,23 +2,17 @@ package com.merchant.review.controller;
 
 
 import com.merchant.review.dto.Result;
-import com.merchant.review.entity.ShopType;
 import com.merchant.review.service.IShopTypeService;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.annotation.Resource;
-import java.util.List;
+import jakarta.annotation.Resource;
 
-/**
- * <p>
- * 前端控制器
- * </p>
- *
- * @author 虎哥
- * @since 2021-12-22
- */
+@Slf4j
+@Tag(name = "店铺类型")
 @RestController
 @RequestMapping("/shop-type")
 public class ShopTypeController {
@@ -27,6 +21,7 @@ public class ShopTypeController {
 
     @GetMapping("list")
     public Result queryTypeList() {
+        log.info("【请求】查询店铺类型列表");
         return typeService.queryList();
     }
 }

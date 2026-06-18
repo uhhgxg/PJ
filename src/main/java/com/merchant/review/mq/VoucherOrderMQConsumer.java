@@ -11,7 +11,7 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 import java.time.LocalDateTime;
 
 /**
@@ -38,16 +38,16 @@ public class VoucherOrderMQConsumer {
         Long userId = message.getUserId();
         Long voucherId = message.getVoucherId();
 
-        log.debug("接收到订单消息 orderId={} userId={} voucherId={}", orderId, userId, voucherId);
+        log.info("【MQ消费】收到秒杀订单消息：订单ID={}，用户ID={}，优惠券ID={}", orderId, userId, voucherId);
 
         // 1. DB 层去重（幂等保护 — 防止 Redis Set 丢失后产生重复订单）
-        Integer exists = voucherOrderMapper.selectCount(
+        Long exists = voucherOrderMapper.selectCount(
                 new LambdaQueryWrapper<VoucherOrder>()
                         .eq(VoucherOrder::getUserId, userId)
                         .eq(VoucherOrder::getVoucherId, voucherId)
         );
         if (exists != null && exists > 0) {
-            log.warn("订单已存在（幂等拦截） userId={} voucherId={} orderId={}", userId, voucherId, orderId);
+            log.warn("【MQ消费】订单已存在，幂等拦截 userId={} voucherId={} orderId={}", userId, voucherId, orderId);
             return; // 已存在，直接 ACK
         }
 
@@ -69,19 +69,21 @@ public class VoucherOrderMQConsumer {
                 boolean success = seckillVoucherService.update()
                         .setSql("stock = stock - 1")
                         .eq("voucher_id", voucherId)
-                        .gt("stock", 0)       // CAS 条件：库存 > 0 才执行 UPDATE
+                        .gt("stock", 0)       // CAS 乐观锁：库存 > 0 才执行 UPDATE
                         .update();
                 if (!success) {
                     status.setRollbackOnly();
+                    log.warn("【MQ消费】库存已耗尽，订单回滚 voucherId={}", voucherId);
                     throw new AmqpRejectAndDontRequeueException("库存已耗尽 voucherId=" + voucherId);
                 }
             });
-            log.info("订单创建成功 orderId={} userId={} voucherId={}", orderId, userId, voucherId);
+            log.info("【MQ消费】订单落库成功 orderId={} userId={} voucherId={}", orderId, userId, voucherId);
         } catch (AmqpRejectAndDontRequeueException e) {
+            log.warn("【MQ消费】非重试异常，消息丢弃：{}", e.getMessage());
             throw e; // 非重试异常，直接抛出，不重试
         } catch (Exception e) {
             // DB 连接超时、死锁等可重试异常 — 抛出异常触发 Spring AMQP 重试
-            log.error("订单创建失败（可重试） orderId={} userId={} voucherId={}", orderId, userId, voucherId, e);
+            log.error("【MQ消费】订单创建失败（可重试） orderId={} userId={} voucherId={}", orderId, userId, voucherId, e);
             throw e;
         }
     }

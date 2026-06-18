@@ -10,11 +10,12 @@ import com.merchant.review.entity.User;
 import com.merchant.review.service.IUserInfoService;
 import com.merchant.review.service.IUserService;
 import com.merchant.review.utils.UserHolder;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
-import javax.annotation.Resource;
-import javax.servlet.http.HttpSession;
+import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpSession;
 
 /**
  * <p>
@@ -24,6 +25,7 @@ import javax.servlet.http.HttpSession;
  * @author 虎哥
  * @since 2021-12-22
  */
+@Tag(name = "用户")
 @Slf4j
 @RestController
 @RequestMapping("/user")
@@ -40,6 +42,7 @@ public class UserController {
      */
     @PostMapping("code")
     public Result sendCode(@RequestParam("phone") String phone, HttpSession session) {
+        log.info("【请求】发送验证码，手机号：{}", phone);
         return userService.sendCode(phone, session);
     }
     // ======================== Session版本 ========================
@@ -64,6 +67,7 @@ public class UserController {
      */
     @PostMapping("/login")
     public Result login(@RequestBody LoginFormDTO loginForm, HttpSession session){
+        log.info("【请求】用户登录，手机号：{}", loginForm.getPhone());
         return userService.login(loginForm, session);
     }
     // ======================== Session版本 ========================
@@ -109,7 +113,9 @@ public class UserController {
      */
     @PostMapping("/logout")
     public Result logout(@RequestHeader(value = "authorization", required = false) String token){
+        log.info("【请求】用户登出");
         if (token == null) {
+            log.warn("【请求】登出失败，token为空");
             return Result.fail("用户未登录！");
         }
         return userService.logout(token);
@@ -127,6 +133,7 @@ public class UserController {
     @GetMapping("/me")
     public Result me(){
         UserDTO user = UserHolder.getUser();
+        log.info("【请求】获取当前登录用户，用户ID：{}", user != null ? user.getId() : "未登录");
         if (user == null) {
             return Result.fail("用户未登录！");
         }
@@ -141,8 +148,10 @@ public class UserController {
 
     @GetMapping("/{id}")
     public Result queryUserById(@PathVariable("id") Long userId){
+        log.info("【请求】查询用户信息，用户ID：{}", userId);
         User user = userService.getById(userId);
         if (user == null) {
+            log.warn("【响应】用户不存在，ID：{}", userId);
             return Result.ok();
         }
         UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);
@@ -151,24 +160,26 @@ public class UserController {
 
     @PostMapping
     public Result saveUser(@RequestBody User user){
+        log.info("【请求】创建用户，手机号：{}", user.getPhone());
         boolean success = userService.save(user);
         if (!success) {
+            log.error("【响应】用户创建失败");
             return Result.fail("用户创建失败");
         }
+        log.info("【响应】用户创建成功，ID：{}", user.getId());
         return Result.ok(user.getId());
     }
 
     @GetMapping("/info/{id}")
     public Result info(@PathVariable("id") Long userId){
-        // 查询详情
+        log.info("【请求】查询用户详情，用户ID：{}", userId);
         UserInfo info = userInfoService.getById(userId);
         if (info == null) {
-            // 没有详情，应该是第一次查看详情
+            log.info("【响应】用户详情为空（首次查看）");
             return Result.ok();
         }
         info.setCreateTime(null);
         info.setUpdateTime(null);
-        // 返回
         return Result.ok(info);
     }
 }

@@ -25,7 +25,7 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -59,10 +59,12 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
 
     @Override
     public Result queryHotBlog(Integer current) {
+        log.info("【热门博客】查询第 {} 页热门博客（按点赞数降序）", current);
         Page<Blog> page = query()
                 .orderByDesc("liked")
                 .page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
         List<Blog> records = page.getRecords();
+        log.info("【热门博客】查询到 {} 条记录", records.size());
         records.forEach(blog -> {
             this.queryBlogUser(blog);
             this.isBlogLiked(blog);
@@ -72,12 +74,15 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
 
     @Override
     public Result queryBlogById(Long id) {
+        log.info("【查询博客】查询博客详情，博客ID：{}", id);
         Blog blog = getById(id);
         if (blog == null) {
+            log.warn("【查询博客】博客不存在，博客ID：{}", id);
             return Result.fail("笔记不存在！");
         }
         queryBlogUser(blog);
         isBlogLiked(blog);
+        log.info("【查询博客】查询成功，标题：{}，作者ID：{}", blog.getTitle(), blog.getUserId());
         return Result.ok(blog);
     }
 
@@ -87,29 +92,37 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
     public Result saveBlog(Blog blog) {
         UserDTO user = UserHolder.getUser();
         blog.setUserId(user.getId());
+        log.info("【发布博客】用户 {} 开始发布博客，标题：{}", user.getId(), blog.getTitle());
         boolean isSuccess = save(blog);
         if (!isSuccess) {
+            log.error("【发布博客】新增笔记失败，用户ID：{}，标题：{}", user.getId(), blog.getTitle());
             return Result.fail("新增笔记失败!");
         }
-        // 推送笔记id给所有粉丝
+        log.info("【发布博客】博客保存成功，博客ID：{}", blog.getId());
+        // 推送笔记id给所有粉丝（Feed流：将新博客推送给每个粉丝的收件箱）
         List<Follow> follows = followService.query().eq("follow_user_id", user.getId()).list();
+        log.info("【发布博客】开始推送Feed流，粉丝数量：{}", follows.size());
         for (Follow follow : follows) {
             Long userId = follow.getUserId();
             String key = FEED_KEY + userId;
             stringRedisTemplate.opsForZSet().add(key, blog.getId().toString(), System.currentTimeMillis());
         }
+        log.info("【发布博客】Feed流推送完成，博客ID：{}", blog.getId());
         return Result.ok(blog.getId());
     }
 
     @Override
     public Result queryBlogOfFollow(Long max, Integer offset) {
         Long userId = UserHolder.getUser().getId();
+        log.info("【Feed流】用户 {} 查询关注者博客，max：{}，offset：{}", userId, max, offset);
         String key = FEED_KEY + userId;
         Set<ZSetOperations.TypedTuple<String>> typedTuples = stringRedisTemplate.opsForZSet()
                 .reverseRangeByScoreWithScores(key, 0, max, offset, 2);
         if (typedTuples == null || typedTuples.isEmpty()) {
+            log.info("【Feed流】没有更多博客了");
             return Result.ok();
         }
+        log.info("【Feed流】查询到 {} 条博客", typedTuples.size());
         List<Long> ids = new ArrayList<>(typedTuples.size());
         long minTime = 0;
         int os = 1;
@@ -142,6 +155,7 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
     public Result likeBlog(Long id) {
         UserDTO user = UserHolder.getUser();
         Long userId = user.getId();
+        log.info("【点赞博客】用户 {} 操作点赞，博客ID：{}", userId, id);
 
         String likedSetKey = RedisConstants.BLOG_LIKED_KEY + id;
         String rankKey     = RedisConstants.BLOG_RANK_LIKES_KEY;
@@ -154,11 +168,12 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         );
 
         if (result == null) {
-            log.error("点赞 Lua 脚本执行异常 blogId={} userId={}", id, userId);
+            log.error("【点赞博客】Lua脚本执行异常 blogId={} userId={}", id, userId);
             return Result.fail("操作失败，请重试");
         }
 
         boolean isLiked = result > 0;
+        log.info("【点赞博客】操作结果：{}，博客ID：{}，用户ID：{}", isLiked ? "已点赞" : "取消点赞", id, userId);
         try {
             if (isLiked) {
                 update().setSql("liked = liked + 1").eq("id", id).update();
@@ -168,7 +183,7 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
                         .update();
             }
         } catch (Exception e) {
-            log.error("DB 点赞数更新失败（定时同步可修复） blogId={} isLiked={}", id, isLiked, e);
+            log.error("【点赞博客】DB更新点赞数失败（定时同步可修复） blogId={} isLiked={}", id, isLiked, e);
         }
 
         return Result.ok(isLiked);
@@ -176,11 +191,14 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
 
     @Override
     public Result queryBlogLikes(Long id) {
+        log.info("【点赞列表】查询博客点赞用户，博客ID：{}", id);
         String key = BLOG_LIKED_KEY + id;
         Set<String> top5 = stringRedisTemplate.opsForZSet().range(key, 0, 4);
         if (top5 == null || top5.isEmpty()) {
+            log.info("【点赞列表】暂无用户点赞");
             return Result.ok(Collections.emptyList());
         }
+        log.info("【点赞列表】前5名点赞用户：{}", top5);
         List<Long> ids = top5.stream().map(Long::valueOf).collect(Collectors.toList());
         String idStr = StrUtil.join(",", ids);
         List<UserDTO> userDTOS = userService.query()

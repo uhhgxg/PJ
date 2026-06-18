@@ -5,7 +5,7 @@ import com.merchant.review.dto.LoginFormDTO;
 import com.merchant.review.dto.Result;
 import com.merchant.review.entity.User;
 
-import javax.servlet.http.HttpSession;
+import jakarta.servlet.http.HttpSession;
 
 /**
  * <p>

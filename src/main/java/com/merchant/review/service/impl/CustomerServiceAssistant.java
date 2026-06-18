@@ -2,14 +2,22 @@ package com.merchant.review.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.merchant.review.service.ai.AiToolFunction;
-import com.merchant.review.service.ai.OpenAiChatService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.ChatResponse;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.openai.OpenAiChatClient;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.Resource;
-import java.util.*;
+import jakarta.annotation.Resource;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -29,13 +37,10 @@ public class CustomerServiceAssistant {
     private static final int MAX_ROUNDS = 20;
 
     @Resource
-    private OpenAiChatService openAiChatService;
+    private OpenAiChatClient chatClient;
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
-
-    @Resource
-    private List<AiToolFunction> aiToolFunctions;
 
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -45,39 +50,41 @@ public class CustomerServiceAssistant {
         // 1. 从 Redis 读取历史对话
         String redisKey = HISTORY_KEY_PREFIX + userId;
         List<String> historyJsonList = stringRedisTemplate.opsForList().range(redisKey, 0, -1);
-        List<Map<String, Object>> messages = new ArrayList<>();
-
-        // 系统提示
-        Map<String, Object> systemMsg = new LinkedHashMap<>();
-        systemMsg.put("role", "system");
-        systemMsg.put("content", SYSTEM_PROMPT);
-        messages.add(systemMsg);
-
-        // 历史消息
+        List<Message> historyMessages = new ArrayList<>();
         if (historyJsonList != null) {
             for (String msgJson : historyJsonList) {
                 try {
                     JsonNode node = mapper.readTree(msgJson);
-                    Map<String, Object> msg = new LinkedHashMap<>();
-                    msg.put("role", node.get("role").asText());
-                    msg.put("content", node.get("content").asText());
-                    messages.add(msg);
+                    String role = node.get("role").asText();
+                    String content = node.get("content").asText();
+                    historyMessages.add("user".equals(role)
+                            ? new UserMessage(content)
+                            : new AssistantMessage(content));
                 } catch (Exception e) {
                     log.warn("解析历史消息失败，跳过：{}", msgJson);
                 }
             }
         }
 
-        // 当前用户消息
-        Map<String, Object> userMsg = new LinkedHashMap<>();
-        userMsg.put("role", "user");
-        userMsg.put("content", message);
-        messages.add(userMsg);
+        // 2. 构建消息列表
+        List<Message> allMessages = new ArrayList<>();
+        allMessages.add(new SystemMessage(SYSTEM_PROMPT));
+        allMessages.addAll(historyMessages);
+        allMessages.add(new UserMessage(message));
 
-        // 2. 调用 AI
+        // 3. 配置函数调用
+        OpenAiChatOptions options = OpenAiChatOptions.builder()
+                .withFunctions(Set.of(
+                        "getShopTypes", "searchShops", "getShopDetail",
+                        "getNearbyShops", "getShopVouchers", "getActiveSeckillVouchers"))
+                .build();
+
+        // 4. 调用 AI
+        Prompt prompt = new Prompt(allMessages, options);
         String reply;
         try {
-            reply = openAiChatService.chat(messages, aiToolFunctions);
+            ChatResponse response = chatClient.call(prompt);
+            reply = response.getResult().getOutput().getContent();
             log.info("【AI聊天】回复成功，长度：{}", reply != null ? reply.length() : 0);
         } catch (Exception e) {
             log.error("【AI聊天】调用AI失败：{}", e.getMessage());
@@ -88,7 +95,7 @@ public class CustomerServiceAssistant {
             reply = "抱歉，我没有理解你的问题，请重新描述。";
         }
 
-        // 3. 保存对话历史（只保存 user 和 assistant 最终消息，不含工具调用中间消息）
+        // 5. 保存对话历史
         try {
             String userMsgJson = mapper.createObjectNode()
                     .put("role", "user").put("content", message).toString();
