@@ -9,7 +9,10 @@ import com.merchant.review.service.ISeckillVoucherService;
 import com.merchant.review.service.IVoucherService;
 import com.merchant.review.utils.RedisConstants;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import org.redisson.api.RAtomicLong;
+import org.redisson.api.RBucket;
+import org.redisson.api.RSet;
+import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,7 +35,7 @@ public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> impl
     @Resource
     private ISeckillVoucherService seckillVoucherService;
     @Resource
-    private StringRedisTemplate stringRedisTemplate;
+    private RedissonClient redissonClient;
 
     @Override
     public Result queryVoucherOfShop(Long shopId) {
@@ -59,19 +62,22 @@ public class VoucherServiceImpl extends ServiceImpl<VoucherMapper, Voucher> impl
         log.info("秒杀信息保存成功 voucherId={} stock={} begin={} end={}",
                 voucher.getId(), voucher.getStock(), voucher.getBeginTime(), voucher.getEndTime());
 
-        // 3. Redis 库存预热 + 已购用户 Set 清理 + 活动时间元数据写入
-        String stockKey  = RedisConstants.SECKILL_STOCK_KEY + voucher.getId();
-        String orderKey  = RedisConstants.SECKILL_ORDER_KEY + voucher.getId();
-        String metaKey   = RedisConstants.SECKILL_VOUCHER_KEY + voucher.getId();
+        // 3. Redis 库存预热 + 已购用户 Set 清理 + 活动时间元数据写入（使用 Redisson）
+        String stockKey = RedisConstants.SECKILL_STOCK_KEY + voucher.getId();
+        String orderKey = RedisConstants.SECKILL_ORDER_KEY + voucher.getId();
+        String metaKey = RedisConstants.SECKILL_VOUCHER_KEY + voucher.getId();
 
-        // 库存写入 Redis
-        stringRedisTemplate.opsForValue().set(stockKey, voucher.getStock().toString());
+        // 库存写入 Redis（RAtomicLong）
+        RAtomicLong stock = redissonClient.getAtomicLong(stockKey);
+        stock.set(voucher.getStock());
         // 清理已购用户 Set（新优惠券，不残留历史数据）
-        stringRedisTemplate.delete(orderKey);
-        // 活动时间写入 Redis（格式："beginEpochSecond,endEpochSecond"），Lua 脚本据此校验时间
+        RSet<String> orderSet = redissonClient.getSet(orderKey);
+        orderSet.delete();
+        // 活动时间写入 Redis（格式："beginEpochSecond,endEpochSecond"）
         String metaValue = voucher.getBeginTime().toEpochSecond(ZoneOffset.UTC)
                 + "," + voucher.getEndTime().toEpochSecond(ZoneOffset.UTC);
-        stringRedisTemplate.opsForValue().set(metaKey, metaValue);
+        RBucket<String> metaBucket = redissonClient.getBucket(metaKey);
+        metaBucket.set(metaValue);
 
         log.info("Redis 库存预热完成 stockKey={}={} orderKey={}=已清理 metaKey={}={}",
                 stockKey, voucher.getStock(), orderKey, metaKey, metaValue);
