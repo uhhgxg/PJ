@@ -1,6 +1,7 @@
 package com.merchant.review.config;
 
 import com.merchant.review.interceptor.LoginInterceptor;
+import com.merchant.review.interceptor.MerchantInterceptor;
 import com.merchant.review.interceptor.RefreshTokenInterceptor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -10,9 +11,10 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import jakarta.annotation.Resource;
 
 /**
- * MVC配置 - 注册双拦截器：
+ * MVC配置 - 注册拦截器：
  * 1. RefreshTokenInterceptor（order=0）：对所有请求刷新token并存入ThreadLocal，始终放行
- * 2. LoginInterceptor（order=1）：对需要登录的路径校验用户是否存在，未登录返回401
+ * 2. LoginInterceptor（order=1）：对用户端需要登录的路径校验，未登录返回401
+ * 3. MerchantInterceptor（order=2）：对商家端接口校验角色是否为商家
  */
 @Configuration
 public class MvcConfig implements WebMvcConfigurer {
@@ -36,8 +38,15 @@ public class MvcConfig implements WebMvcConfigurer {
                         "/blog/like/**",
                         "/blog/of/me",
                         "/voucher-order/**",
-                        "/upload/**"
+                        "/upload/**",
+                        "/merchant/**",
+                        "/review/**"
                 )
                 .order(1);
+
+        // 拦截器3：商家角色校验拦截器
+        registry.addInterceptor(new MerchantInterceptor())
+                .addPathPatterns("/merchant/**")
+                .order(2);
     }
 }

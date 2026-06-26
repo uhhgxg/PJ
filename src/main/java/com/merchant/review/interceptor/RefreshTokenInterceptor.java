@@ -56,6 +56,8 @@ public class RefreshTokenInterceptor implements HandlerInterceptor {
         userDTO.setId(Long.valueOf((String) userMap.get("id")));
         userDTO.setNickName((String) userMap.get("nickName"));
         userDTO.setIcon((String) userMap.get("icon"));
+        String roleStr = (String) userMap.get("role");
+        userDTO.setRole(roleStr != null ? Integer.valueOf(roleStr) : 0);
 
         // 4. 将用户信息存入ThreadLocal（当前线程内全局可访问）
         UserHolder.saveUser(userDTO);

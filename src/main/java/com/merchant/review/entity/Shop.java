@@ -89,6 +89,11 @@ public class Shop implements Serializable {
     private Integer score;
 
     /**
+     * 商户用户ID（关联 tb_user）
+     */
+    private Long ownerId;
+
+    /**
      * 营业时间，例如 10:00-22:00
      */
     private String openHours;

@@ -1282,3 +1282,55 @@ CREATE TABLE `tb_voucher_order`  (
 -- ----------------------------
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+-- ----------------------------
+-- Table structure for tb_review（商户评价）
+-- ----------------------------
+DROP TABLE IF EXISTS `tb_review`;
+CREATE TABLE `tb_review`  (
+  `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `shop_id` bigint(20) NOT NULL COMMENT '商户id',
+  `user_id` bigint(20) UNSIGNED NOT NULL COMMENT '用户id',
+  `rating` tinyint(1) UNSIGNED NOT NULL COMMENT '评分 1-5',
+  `content` varchar(2048) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '评价内容',
+  `sentiment` varchar(16) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'AI情感分类: positive/neutral/negative',
+  `ai_score` double(3,2) DEFAULT NULL COMMENT 'AI情感评分 0.0~1.0',
+  `ai_tags` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'AI标签（JSON数组）',
+  `ai_suggestion` varchar(1024) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'AI差评整改建议',
+  `reply` varchar(1024) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '商家回复',
+  `replied` tinyint(1) UNSIGNED DEFAULT 0 COMMENT '是否已回复 0=未回复 1=已回复',
+  `reply_time` timestamp NULL DEFAULT NULL COMMENT '回复时间',
+  `create_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_shop_id`(`shop_id`) USING BTREE,
+  INDEX `idx_user_id`(`user_id`) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Compact;
+
+-- ----------------------------
+-- 商户评价示例数据
+-- ----------------------------
+INSERT INTO `tb_review` VALUES (1, 1, 1, 3, '环境还不错，但上菜速度太慢了，等了一个小时才上齐，味道中规中矩吧。', 'negative', 0.35, '[\"上菜慢\",\"口味一般\"]', '建议优化出餐流程，高峰期增派人手，缩短顾客等位时间。', NULL, 0, NULL, '2025-08-01 12:30:00', '2025-08-01 12:30:00');
+INSERT INTO `tb_review` VALUES (2, 1, 2, 5, '超级好吃！叉烧饭绝了，每次来必点，服务态度也很好，强烈推荐！', 'positive', 0.95, '[\"口味赞\",\"服务好\"]', '', NULL, 0, NULL, '2025-08-05 18:20:00', '2025-08-05 18:20:00');
+INSERT INTO `tb_review` VALUES (3, 1, 5, 2, '今天去体验很差，桌面油腻腻的，服务员叫了半天没人理，不会再来了。', 'negative', 0.10, '[\"卫生差\",\"服务差\"]', '建议加强卫生管理，定时清洁桌面，并优化服务员响应机制。', NULL, 0, NULL, '2025-08-10 19:45:00', '2025-08-10 19:45:00');
+INSERT INTO `tb_review` VALUES (4, 2, 1, 4, '铜锅涮羊肉很正宗，麻酱调配得很香，就是排队时间长了点。', 'positive', 0.80, '[\"口味正宗\",\"等位久\"]', '', NULL, 0, NULL, '2025-08-12 20:00:00', '2025-08-12 20:00:00');
+
+-- ----------------------------
+-- tb_shop 增加 owner_id（关联商户用户）
+-- ----------------------------
+ALTER TABLE `tb_shop`
+  ADD COLUMN `owner_id` bigint(20) UNSIGNED DEFAULT NULL COMMENT '商户用户ID' AFTER `score`;
+
+-- ----------------------------
+-- tb_user 增加 role 字段
+-- ----------------------------
+ALTER TABLE `tb_user`
+  ADD COLUMN `role` tinyint(1) UNSIGNED DEFAULT 0 COMMENT '角色 0=普通用户 1=商家' AFTER `icon`;
+
+-- ----------------------------
+-- 将部分用户设为商家角色
+-- ----------------------------
+UPDATE `tb_user` SET `role` = 1 WHERE `id` IN (1, 5);
+UPDATE `tb_shop` SET `owner_id` = 1 WHERE `id` IN (1, 3, 4, 5, 6, 7);
+UPDATE `tb_shop` SET `owner_id` = 5 WHERE `id` IN (2, 8, 9, 10);
+-- 其他店铺 owner_id = NULL，表示未分配商户

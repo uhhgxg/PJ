@@ -127,6 +127,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         userMap.put("id", userDTO.getId().toString());
         userMap.put("nickName", userDTO.getNickName());
         userMap.put("icon", userDTO.getIcon() == null ? "" : userDTO.getIcon());
+        userMap.put("role", String.valueOf(user.getRole() != null ? user.getRole() : 0));
 
         String key = LOGIN_USER_KEY + token;
         redisUtils.hashPutAll(key, userMap, LOGIN_USER_TTL, TimeUnit.SECONDS);
